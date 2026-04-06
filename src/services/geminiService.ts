@@ -12,7 +12,7 @@ export async function getHint(roomTitle: string, taskQuestion: string, userProgr
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: `You are a cybersecurity mentor for a platform like TryHackMe. 
       The user is working on a room called "${roomTitle}".
       The current task is: "${taskQuestion}".
@@ -31,7 +31,7 @@ export async function generateLabDescription(topic: string) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: `Generate a compelling, educational description for a new cybersecurity lab room about "${topic}". 
       Include:
       1. A brief background story.
@@ -50,10 +50,14 @@ export async function chatWithGemini(message: string, history: any[] = []) {
   try {
     const ai = getAI();
     const chat = ai.chats.create({
-      model: "gemini-1.5-pro",
+      model: "gemini-3.1-pro-preview",
       config: {
         systemInstruction: "You are HackLab AI, a specialized cybersecurity assistant. You help users with lab tasks, explain concepts, and provide guidance on ethical hacking. Always maintain an encouraging and professional tone. Never provide actual flags or direct answers to lab questions unless specifically asked for educational purposes in a controlled context.",
       },
+      history: history.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }))
     });
 
     const response = await chat.sendMessage({ message });
@@ -68,7 +72,7 @@ export async function analyzeImage(base64Image: string, prompt: string) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-pro",
+      model: "gemini-3.1-pro-preview",
       contents: [
         {
           parts: [
@@ -114,7 +118,7 @@ export async function generateVideo(prompt: string, imageBase64?: string) {
   try {
     const ai = getAI();
     const config: any = {
-      model: 'veo-3.1-fast-generate-preview',
+      model: 'veo-3.1-lite-generate-preview',
       prompt,
       config: {
         numberOfVideos: 1,
@@ -124,8 +128,10 @@ export async function generateVideo(prompt: string, imageBase64?: string) {
     };
 
     if (imageBase64) {
+      // Remove data:image/png;base64, prefix if present
+      const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
       config.image = {
-        imageBytes: imageBase64,
+        imageBytes: base64Data,
         mimeType: 'image/png'
       };
     }
@@ -137,7 +143,22 @@ export async function generateVideo(prompt: string, imageBase64?: string) {
       operation = await ai.operations.getVideosOperation({ operation: operation });
     }
 
-    return operation.response?.generatedVideos?.[0]?.video?.uri;
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (!downloadLink) return null;
+
+    // Fetch the video with the API key
+    const apiKey = process.env.GEMINI_API_KEY;
+    const response = await fetch(downloadLink, {
+      method: 'GET',
+      headers: {
+        'x-goog-api-key': apiKey!,
+      },
+    });
+
+    if (!response.ok) throw new Error('Failed to download video');
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
   } catch (error) {
     console.error("Gemini Video Error:", error);
     throw error;
@@ -148,7 +169,7 @@ export async function searchGrounding(query: string) {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: query,
       config: {
         tools: [{ googleSearch: {} }],

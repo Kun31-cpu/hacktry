@@ -793,24 +793,34 @@ const RoomCard = ({ room, onClick, isSaved, onToggleSave }: { room: Room, onClic
   );
 };
 
-const SavedLabs = ({ rooms, savedLabs, onToggleSave, setView, setSelectedRoomId }: { rooms: Room[], savedLabs: number[], onToggleSave: (id: number) => void, setView: (v: string) => void, setSelectedRoomId: (id: number) => void }) => {
+const SavedLabs = ({ rooms, savedLabs, onToggleSave, setView, setSelectedRoomId, user }: { rooms: Room[], savedLabs: number[], onToggleSave: (id: number) => void, setView: (v: string) => void, setSelectedRoomId: (id: number) => void, user: User | null }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('saved');
   const [hideCompleted, setHideCompleted] = useState(false);
 
   const savedRooms = rooms.filter(r => savedLabs.includes(r.id));
+  const joinedRooms = rooms.filter(r => user?.solvedLabs?.some(sl => sl.roomId === r.id));
+  const managedRooms = rooms.filter(r => r.creator_id === user?.id || user?.role === 'admin');
+
+  const displayRooms = activeTab === 'saved' ? savedRooms : 
+                      activeTab === 'joined rooms' ? joinedRooms : 
+                      managedRooms;
   
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
         <div>
-          <h1 className="text-5xl font-black text-app-heading tracking-tighter mb-4">My Rooms</h1>
-          <p className="text-zinc-500 text-lg font-medium">All the rooms that you have joined and saved.</p>
+          <h1 className="text-5xl font-black text-app-heading tracking-tighter mb-4">
+            {activeTab === 'manage rooms' ? 'Manage Rooms' : 'My Rooms'}
+          </h1>
+          <p className="text-zinc-500 text-lg font-medium">
+            {activeTab === 'manage rooms' ? 'Manage and edit rooms you have created.' : 'All the rooms that you have joined and saved.'}
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2 text-zinc-500 font-black uppercase tracking-widest text-xs">
-            <span className="text-app-heading text-2xl leading-none">{savedRooms.length}</span>
-            <span>Rooms Saved</span>
+            <span className="text-app-heading text-2xl leading-none">{displayRooms.length}</span>
+            <span>Rooms {activeTab === 'manage rooms' ? 'Managed' : 'Total'}</span>
           </div>
         </div>
       </div>
@@ -820,12 +830,21 @@ const SavedLabs = ({ rooms, savedLabs, onToggleSave, setView, setSelectedRoomId 
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input 
             type="text" 
-            placeholder="Find posts by a keyword..."
+            placeholder="Find rooms by a keyword..."
             className="w-full bg-app-card border border-app-border rounded-xl pl-12 pr-4 py-3 text-sm text-app-heading focus:outline-none focus:border-[#a3e635] transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+        {activeTab === 'manage rooms' && (
+          <button 
+            onClick={() => setView('create')}
+            className="px-6 py-3 bg-[#a3e635] hover:bg-[#bef264] text-black text-xs font-black rounded-xl uppercase tracking-widest transition-all shadow-lg shadow-[#a3e635]/20 flex items-center gap-2"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Create Room
+          </button>
+        )}
         <div className="flex items-center gap-3">
           <span className="text-xs font-black text-zinc-500 uppercase tracking-widest">Hide Completed rooms</span>
           <button 
@@ -858,26 +877,59 @@ const SavedLabs = ({ rooms, savedLabs, onToggleSave, setView, setSelectedRoomId 
         ))}
       </div>
 
-      {savedRooms.length > 0 ? (
+      {displayRooms.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {savedRooms.map(room => (
-            <RoomCard 
-              key={room.id} 
-              room={room} 
-              onClick={() => {
-                setSelectedRoomId(room.id);
-                setView('room-detail');
-              }} 
-              isSaved={true}
-              onToggleSave={onToggleSave}
-            />
+          {displayRooms.map(room => (
+            <div key={room.id} className="relative group">
+              <RoomCard 
+                room={room} 
+                onClick={() => {
+                  if (activeTab === 'manage rooms') {
+                    setSelectedRoomId(room.id);
+                    setView('manage-room-detail');
+                  } else {
+                    setSelectedRoomId(room.id);
+                    setView('room-detail');
+                  }
+                }} 
+                isSaved={savedLabs.includes(room.id)}
+                onToggleSave={onToggleSave}
+              />
+              {activeTab === 'manage rooms' && (
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-1 flex gap-1">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRoomId(room.id);
+                        setView('manage-room-detail');
+                      }}
+                      className="p-2 hover:bg-white/10 rounded-md transition-colors text-white"
+                      title="Manage"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       ) : (
         <div className="text-center py-20 bg-app-card border border-dashed border-app-border rounded-3xl">
-          <Bookmark className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-app-heading mb-2">No saved rooms</h3>
-          <p className="text-zinc-500">You haven't saved any rooms yet.</p>
+          {activeTab === 'saved' ? <Bookmark className="w-12 h-12 text-zinc-700 mx-auto mb-4" /> :
+           activeTab === 'joined rooms' ? <Activity className="w-12 h-12 text-zinc-700 mx-auto mb-4" /> :
+           <Layout className="w-12 h-12 text-zinc-700 mx-auto mb-4" />}
+          <h3 className="text-xl font-bold text-app-heading mb-2">
+            {activeTab === 'saved' ? 'No saved rooms' : 
+             activeTab === 'joined rooms' ? 'No joined rooms' : 
+             'No rooms to manage'}
+          </h3>
+          <p className="text-zinc-500">
+            {activeTab === 'saved' ? "You haven't saved any rooms yet." :
+             activeTab === 'joined rooms' ? "You haven't joined any rooms yet." :
+             "You haven't created any rooms yet."}
+          </p>
         </div>
       )}
 
@@ -3187,6 +3239,79 @@ const ManageRoomDetail = ({ roomId, rooms, onBack, addToast, onUpdate }: { roomI
     }
   };
 
+  const [isResetting, setIsResetting] = useState(false);
+  const handleResetRoom = async () => {
+    if (!confirm('Are you sure you want to reset progress for all users in this room? This cannot be undone.')) return;
+    setIsResetting(true);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/reset`, { method: 'POST' });
+      if (res.ok) {
+        addToast('Room progress reset successfully', 'success');
+      } else {
+        throw new Error('Failed to reset room');
+      }
+    } catch (err) {
+      addToast('Error resetting room', 'error');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const handleDeleteRoom = async () => {
+    if (!confirm(`Are you sure you want to delete "${room.title}"? This action is permanent.`)) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+      if (res.ok) {
+        addToast('Room deleted successfully', 'success');
+        onBack();
+        onUpdate();
+      } else {
+        throw new Error('Failed to delete room');
+      }
+    } catch (err) {
+      addToast('Error deleting room', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const [enrolledUsers, setEnrolledUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      setUsersLoading(true);
+      fetch(`/api/rooms/${roomId}/users`)
+        .then(res => res.json())
+        .then(data => setEnrolledUsers(data))
+        .catch(() => addToast('Failed to fetch users', 'error'))
+        .finally(() => setUsersLoading(false));
+    }
+  }, [activeTab, roomId]);
+
+  const handleUpdateAccess = async () => {
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/access`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublic, accessCode: roomCode })
+      });
+      if (res.ok) {
+        addToast('Access settings updated', 'success');
+        onUpdate();
+      } else {
+        throw new Error('Failed to update access');
+      }
+    } catch (err) {
+      addToast('Error updating access', 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (!room.tasks) return;
     const remainingTasks = room.tasks.filter(t => !selectedTasks.includes(t.id));
@@ -4336,7 +4461,220 @@ const ManageRoomDetail = ({ roomId, rooms, onBack, addToast, onUpdate }: { roomI
             </div>
           )}
 
-          {!['general', 'design', 'video', 'stats', 'categories', 'tasks'].includes(activeTab) && (
+          {activeTab === 'users' && (
+            <div className="space-y-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Users className="w-6 h-6 text-[#a3e635]" />
+                  <h3 className="text-2xl font-black text-app-heading tracking-tight">Enrolled Users</h3>
+                </div>
+                <div className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                  {enrolledUsers.length} Users Enrolled
+                </div>
+              </div>
+
+              {usersLoading ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-zinc-500 font-black uppercase tracking-widest text-xs">Fetching user data...</p>
+                </div>
+              ) : enrolledUsers.length > 0 ? (
+                <div className="overflow-hidden border border-app-border rounded-2xl">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-app-heading/5">
+                        <th className="px-6 py-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">User</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Joined</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Progress</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-app-border">
+                      {enrolledUsers.map(u => (
+                        <tr key={u.id} className="hover:bg-app-heading/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#a3e635]/10 flex items-center justify-center text-[#a3e635] font-black text-xs">
+                                {u.username[0].toUpperCase()}
+                              </div>
+                              <span className="text-sm font-bold text-app-heading">{u.username}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-zinc-500 font-medium">
+                            {new Date(u.joinedAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 h-1.5 bg-app-heading/10 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-[#a3e635]" 
+                                  style={{ width: `${u.progress}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-black text-app-heading">{u.progress}%</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button className="text-xs font-black text-red-500 hover:text-red-400 uppercase tracking-widest">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-20 bg-app-heading/5 rounded-3xl border border-dashed border-app-border">
+                  <Users className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
+                  <h4 className="text-xl font-bold text-app-heading mb-2">No users enrolled</h4>
+                  <p className="text-zinc-500">Share your room to get users to join!</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'clone' && (
+            <div className="space-y-8">
+              <div className="flex items-center gap-3">
+                <Copy className="w-6 h-6 text-[#a3e635]" />
+                <h3 className="text-2xl font-black text-app-heading tracking-tight">Clone Room</h3>
+              </div>
+              <div className="p-8 bg-app-heading/5 border border-app-border rounded-3xl space-y-6">
+                <p className="text-zinc-500 font-medium leading-relaxed">
+                  Cloning this room will create an exact copy of all its settings, tasks, and design. 
+                  This is useful if you want to create a variation of this room or use it as a template for a new one.
+                </p>
+                <div className="flex items-center gap-4 p-4 bg-[#a3e635]/5 rounded-xl border border-[#a3e635]/20">
+                  <Activity className="w-5 h-5 text-[#a3e635]" />
+                  <p className="text-xs text-[#a3e635] font-bold">User progress and stats will NOT be cloned.</p>
+                </div>
+                <button 
+                  onClick={handleCloneRoom}
+                  disabled={isCloning}
+                  className="px-8 py-4 bg-[#a3e635] hover:bg-[#bef264] text-black font-black rounded-xl transition-all shadow-lg shadow-[#a3e635]/20 flex items-center gap-2 uppercase tracking-widest text-sm"
+                >
+                  {isCloning ? <LoadingSpinner size="sm" /> : <Copy className="w-4 h-4" />}
+                  Clone this room
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'access' && (
+            <div className="space-y-8">
+              <div className="flex items-center gap-3">
+                <Lock className="w-6 h-6 text-[#a3e635]" />
+                <h3 className="text-2xl font-black text-app-heading tracking-tight">Access Control</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="p-8 bg-app-heading/5 border border-app-border rounded-3xl space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-app-heading uppercase tracking-widest mb-1">Public Visibility</h4>
+                      <p className="text-xs text-zinc-500 font-medium">Allow anyone to find and join this room.</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsPublic(!isPublic)}
+                      className={cn(
+                        "w-12 h-6 rounded-full relative transition-colors",
+                        isPublic ? "bg-[#a3e635]" : "bg-zinc-700"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 w-4 h-4 rounded-full bg-white transition-all",
+                        isPublic ? "left-7" : "left-1"
+                      )} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-app-heading/5 border border-app-border rounded-3xl space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">Access Code (Optional)</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                      <input 
+                        type="text" 
+                        value={roomCode}
+                        onChange={(e) => setRoomCode(e.target.value)}
+                        placeholder="e.g. SECRET_LAB_2024"
+                        className="w-full bg-black/5 dark:bg-black/40 border border-app-border rounded-xl pl-12 pr-4 py-3 text-sm text-app-heading focus:outline-none focus:border-[#a3e635] transition-all"
+                      />
+                    </div>
+                    <p className="text-[10px] text-zinc-500 font-medium px-1 italic">If set, users will need this code to join the room.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button 
+                  onClick={handleUpdateAccess}
+                  disabled={isUpdating}
+                  className="px-8 py-3 bg-[#a3e635] hover:bg-[#bef264] text-black font-black rounded-xl transition-all shadow-lg shadow-[#a3e635]/20 uppercase tracking-widest text-xs"
+                >
+                  {isUpdating ? 'Saving...' : 'Update Access Settings'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'reset' && (
+            <div className="space-y-8">
+              <div className="flex items-center gap-3">
+                <RotateCcw className="w-6 h-6 text-[#a3e635]" />
+                <h3 className="text-2xl font-black text-app-heading tracking-tight">Reset Room Progress</h3>
+              </div>
+              <div className="p-8 bg-app-heading/5 border border-app-border rounded-3xl space-y-6">
+                <p className="text-zinc-500 font-medium leading-relaxed">
+                  Resetting the room will clear all user progress, submissions, and statistics for this room. 
+                  This action is useful if you've made major changes to tasks and want everyone to start fresh.
+                </p>
+                <div className="flex items-center gap-4 p-4 bg-yellow-500/5 rounded-xl border border-yellow-500/20">
+                  <Activity className="w-5 h-5 text-yellow-500" />
+                  <p className="text-xs text-yellow-500 font-bold">This action CANNOT be undone. All user flags will be cleared.</p>
+                </div>
+                <button 
+                  onClick={handleResetRoom}
+                  disabled={isResetting}
+                  className="px-8 py-4 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-black font-black rounded-xl border border-yellow-500/20 transition-all flex items-center gap-2 uppercase tracking-widest text-sm"
+                >
+                  {isResetting ? <LoadingSpinner size="sm" /> : <RotateCcw className="w-4 h-4" />}
+                  Reset all progress
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'delete' && (
+            <div className="space-y-8">
+              <div className="flex items-center gap-3">
+                <Trash2 className="w-6 h-6 text-red-500" />
+                <h3 className="text-2xl font-black text-app-heading tracking-tight">Delete Room</h3>
+              </div>
+              <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-3xl space-y-6">
+                <div className="space-y-2">
+                  <h4 className="text-xl font-black text-red-500">Danger Zone</h4>
+                  <p className="text-zinc-500 font-medium leading-relaxed">
+                    Deleting this room will permanently remove it from the platform. All tasks, files, and user data associated with this room will be lost forever.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+                  <X className="w-5 h-5 text-red-500" />
+                  <p className="text-xs text-red-500 font-bold">This action is permanent and cannot be reversed.</p>
+                </div>
+                <button 
+                  onClick={handleDeleteRoom}
+                  disabled={isDeleting}
+                  className="px-8 py-4 bg-red-500 hover:bg-red-600 text-white font-black rounded-xl transition-all shadow-lg shadow-red-500/20 flex items-center gap-2 uppercase tracking-widest text-sm"
+                >
+                  {isDeleting ? <LoadingSpinner size="sm" /> : <Trash2 className="w-4 h-4" />}
+                  Permanently delete room
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!['general', 'design', 'video', 'stats', 'categories', 'tasks', 'users', 'clone', 'access', 'reset', 'delete'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-20 h-20 bg-app-heading/5 rounded-full flex items-center justify-center mb-6">
                 <Settings className="w-10 h-10 text-zinc-700" />
@@ -6750,6 +7088,7 @@ export default function App() {
               }}
               setView={setView}
               setSelectedRoomId={setSelectedRoomId}
+              user={user}
             />
           )}
 

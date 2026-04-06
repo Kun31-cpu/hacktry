@@ -302,6 +302,61 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/rooms/:id", (req, res) => {
+    const roomId = parseInt(req.params.id);
+    const roomIndex = rooms.findIndex(r => r.id === roomId);
+    if (roomIndex !== -1) {
+      rooms.splice(roomIndex, 1);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Room not found" });
+    }
+  });
+
+  app.post("/api/rooms/:id/reset", (req, res) => {
+    const roomId = parseInt(req.params.id);
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      // In a real app, this would reset user progress for this room
+      // For this mock, we just return success
+      res.json({ success: true, message: "Room progress reset successfully" });
+    } else {
+      res.status(404).json({ error: "Room not found" });
+    }
+  });
+
+  app.get("/api/rooms/:id/users", (req, res) => {
+    const roomId = parseInt(req.params.id);
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      // Mock users enrolled in this room
+      const enrolledUsers = [
+        { id: "1", username: "cyber_ninja", joinedAt: "2024-03-15T10:00:00Z", progress: 100 },
+        { id: "2", username: "root_hacker", joinedAt: "2024-03-16T14:30:00Z", progress: 45 },
+        { id: "3", username: "kbera1363", joinedAt: "2024-03-20T09:15:00Z", progress: 10 }
+      ];
+      res.json(enrolledUsers);
+    } else {
+      res.status(404).json({ error: "Room not found" });
+    }
+  });
+
+  app.put("/api/rooms/:id/access", (req, res) => {
+    const roomId = parseInt(req.params.id);
+    const { isPublic, accessCode } = req.body;
+    const roomIndex = rooms.findIndex(r => r.id === roomId);
+    if (roomIndex !== -1) {
+      rooms[roomIndex] = {
+        ...rooms[roomIndex],
+        isPublic: isPublic !== undefined ? isPublic : rooms[roomIndex].isPublic,
+        accessCode: accessCode !== undefined ? accessCode : rooms[roomIndex].accessCode
+      };
+      res.json(rooms[roomIndex]);
+    } else {
+      res.status(404).json({ error: "Room not found" });
+    }
+  });
+
   app.get("/api/users/:id/profile", (req, res) => {
     res.json({
       id: req.params.id,

@@ -22,7 +22,7 @@ export const GeminiLive = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
       
       const sessionPromise = ai.live.connect({
-        model: "gemini-2.5-flash-native-audio-preview-09-2025",
+        model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -93,7 +93,7 @@ export const GeminiLive = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         
         if (sessionRef.current) {
           sessionRef.current.sendRealtimeInput({
-            media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
+            audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
           });
         }
         
@@ -121,10 +121,37 @@ export const GeminiLive = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     return buf;
   };
 
+  const nextStartTimeRef = useRef<number>(0);
+
   const playAudio = (base64Data: string) => {
-    // Basic audio playback implementation
-    const audio = new Audio(`data:audio/wav;base64,${base64Data}`);
-    audio.play();
+    if (!audioContextRef.current) return;
+    
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    
+    const pcmData = new Int16Array(bytes.buffer);
+    const float32Data = new Float32Array(pcmData.length);
+    for (let i = 0; i < pcmData.length; i++) {
+      float32Data[i] = pcmData[i] / 32768.0;
+    }
+    
+    const buffer = audioContextRef.current.createBuffer(1, float32Data.length, 24000);
+    buffer.getChannelData(0).set(float32Data);
+    
+    const source = audioContextRef.current.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContextRef.current.destination);
+    
+    const currentTime = audioContextRef.current.currentTime;
+    if (nextStartTimeRef.current < currentTime) {
+      nextStartTimeRef.current = currentTime;
+    }
+    
+    source.start(nextStartTimeRef.current);
+    nextStartTimeRef.current += buffer.duration;
   };
 
   const stopPlayback = () => {

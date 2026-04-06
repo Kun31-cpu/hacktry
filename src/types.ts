@@ -11,6 +11,8 @@ export interface User {
   streak?: number;
   badges?: string[];
   calendly_link?: string;
+  role?: 'admin' | 'user';
+  solvedLabs?: { roomId: number, solvedAt: string }[];
   socials?: {
     discord?: string;
     twitter?: string;
